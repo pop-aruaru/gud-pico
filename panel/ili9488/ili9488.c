@@ -179,24 +179,29 @@ cmake -DPICO_BOARD=seeed_xiao_rp2040
 #define COLOR_MODE 1
 #define BL_DEF_LEVEL    100
 #define COMPRESS 1
-
+//#define BGR
+#define IPS
 
 #ifdef VGA
 #define WIDTH   480
 #define HEIGHT  320
-#if defined(SEEED_XIAO_RP2350)
-#define ROTATE 0
-#else
-#define ROTATE 0
+    #if defined(SEEED_XIAO_RP2350)
+    #define ROTATE 0
+    #else
+        #if defined(RASPBERRYPI_PICO2)
+        #define ROTATE 180
+        #else
+        #define ROTATE 0
+        #endif
+    #endif
 #endif
-#elifdef VGA_H
+#ifdef VGA_H
 #define WIDTH   320
 #define HEIGHT  480
 #define ROTATE 90
 #else
 #define WIDTH   480
 #define HEIGHT  320
-#define ROTATE 180
 #endif
 #if COLOR_MODE==1
     #define RGB565
@@ -474,7 +479,9 @@ static void init_display(void)
         #elif defined(RGB888)
         mipi_dbi_command(&dbi,0x3A,0x66);//#  6:RGB666 , 7:RGB888
         #endif
+        #ifdef IPS
         mipi_dbi_command(&dbi,0x21,0x00);//# //IPS 
+        #endif
         mipi_dbi_command(&dbi,0xE9,0x00);
         mipi_dbi_command(&dbi,0xF7,0xA9,0x51,0x2C,0x82);
         mipi_dbi_command(&dbi,0xE0,0x00,0x07,0x0B,0x03,0x0F,0x05,0x30,0x56,0x47,0x04,0x0B,0x0A,0x2D,0x37,0x0F);
@@ -502,7 +509,9 @@ static void init_display(void)
             addr_mode = ILI9341_MADCTL_MX;
             break;
         }
+        #ifdef BGR
         addr_mode |= ILI9341_MADCTL_BGR;
+        #endif
         mipi_dbi_command(&dbi, MIPI_DCS_SET_ADDRESS_MODE, addr_mode);
     }
 
@@ -515,19 +524,19 @@ static void init_display(void)
         /* RGB565 */
         uint16_t * pos;
         backlight_set(100);
-        for (int color=0;color<3;color+=1){
+        for (int color=0;color<4;color+=1){
             LOG("color:%d\n\r",color);
             pos=framebuffer;
             for(int x=0;x<WIDTH;x++){
                 for (int y=0;y<HEIGHT;y++){
                     if (color==0){
-                        *pos++=0xf800;// Red
-                    }else if(color==1){
-                        *pos++=0x07e0;// Green
-                    }else if(color==2){
-                        *pos++=0x001f;// Blue
-                    }else{
                         *pos++=0xffff;// White
+                    }else if(color==1){
+                        *pos++=0xf800;// Red
+                    }else if(color==2){
+                        *pos++=0x07e0;// Green
+                    }else{
+                        *pos++=0x001f;// Blue
                     }
                 }
             }
@@ -774,11 +783,9 @@ int main(void)
     return 0;
 
 }
-#if 0
 void tud_mount_cb(void)
 {
     LOG("%s:\n", __func__);
     if (LED_ACTION == 2)
         board_led_write(false);
 }
-#endif

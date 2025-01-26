@@ -18,20 +18,11 @@
 #include "gud.h"
 #include "mipi_dbi.h"
 #include "cie1931.h"
-#if 0
-#define TFT_BLACK       0x000000      /*   0,   0,   0 */
-#define TFT_BLUE        0x0000ff      /*   0,   0, 255 */
-#define TFT_GREEN       0x00FF00      /*   0, 255,   0 */
-#define TFT_RED         0xFF0000      /* 255,   0,   0 */
-#define TFT_WHITE       0xFFFFFF      /* 255, 255, 255 */
-#endif
-#define GUD_DEBUG 0
-//#define LOG
-//#define LOG2
-//#define LOG3
+
+#define GUD_DEBUG -1
 #define USE_WATCHDOG    0
 #define PANIC_REBOOT_BLINK_LED_MS   100
-#if 1
+
 #if GUD_DEBUG >= 1
 #define LOG     printf
 #else
@@ -47,7 +38,7 @@
 #else
 #define LOG3
 #endif
-#endif
+
 /*
  * 0 = led off
  * 1 = power led, off while flushing
@@ -55,31 +46,6 @@
  */
 #define LED_ACTION  2
 
-/*
- * Pins are mapped for the Watterott RPi-Display on a Pico HAT Expansion board:
- * https://shop.sb-components.co.uk/products/raspberry-pi-pico-hat-expansion
- *
- * Pi           Pico    Function
- * -----------------------------
- * GPIO11       GP2     SPI CLK
- * GPIO10       GP3     SPI MOSI
- * GPIO9        GP4     SPI MISO
- * GPIO8        GP5     SPI CE0 - MI0283QT
- * GPIO7        GP19    SPI CE1 - ADS7846
- * GPIO23       GP27    MI0283QT /reset
- * GPIO24       GP26    MI0283QT D/C
- * GPIO18       GP28    MI0283QT backlight
- * GPIO25       GP22    ADS7846 /PENIRQ
- *
- *
- * The Adafruit PiTFT 2.8" should also work (not tested):
- * - Doesn't have a reset pin
- * - MISO is not connected to the display controller
- * - STMPE610 touch controller, also used to control backlight (no pwm)
- *
- * GPIO25       D/C
- * GPIO24       STMPE610 INT
- */
 #ifdef SEEED_XIAO_RP2350
 //#error 2350
 //for xiao_rp2350
@@ -182,8 +148,12 @@ cmake -DPICO_BOARD=seeed_xiao_rp2040
 #ifdef VGA
 #define WIDTH   480
 #define HEIGHT  320
-#define ROTATE 180
-#elifdef VGA_H
+    #ifdef SEEED_XIAO_RP2350
+    #define ROTATE 0
+    #else
+    #define ROTATE 180
+    #endif
+#elif defined(VGA_H)
 #define WIDTH   320
 #define HEIGHT  480
 #define ROTATE 90
@@ -443,10 +413,12 @@ static void init_display(void)
         mipi_dbi_command(&dbi,0xE1,0xD0,0x0A,0x11,0x0B,0x09,0x07,0x2F,0x33,0x47,0x38,0x15,0x16,0x2C,0x32);
         mipi_dbi_command(&dbi,0xF0,0x3C);   
         mipi_dbi_command(&dbi,0xF0,0x69);   
-        sleep_ms(120);                
-        //mipi_dbi_command(&dbi,0x21);   // 9.2.17 INVON (21h): Display Inversion On  
+        sleep_ms(120);  
+        #ifdef IPS              
+        mipi_dbi_command(&dbi,0x21);   // 9.2.17 INVON (21h): Display Inversion On  
+        #endif
         mipi_dbi_command(&dbi,0x29); // 9.2.19 DISPON (29h): Display On 
-    if(1){
+    {
         uint16_t rotation = ROTATE;
         uint8_t addr_mode;
     
@@ -464,7 +436,9 @@ static void init_display(void)
             addr_mode = MADCTL_MX;
             break;
         }
+        #ifndef BGR
         addr_mode |= MADCTL_BGR;
+        #endif
         mipi_dbi_command(&dbi, MIPI_DCS_SET_ADDRESS_MODE, addr_mode);// 9.2.28 MADCTL (36h): Memory Data Access Contro
     }
 
@@ -500,7 +474,7 @@ static void init_display(void)
             LOG("color:%d\n\r",color);
         }
         sleep_ms(3000);
-        #elif 0
+        #elif 1
         /* Red Green Blue 3色 */
         uint8_t * pos;
         backlight_set(100);
@@ -529,29 +503,33 @@ static void init_display(void)
         }
         #endif
     #else
-        #if 0
         /* RGB565 */
         uint16_t * pos;
         backlight_set(100);
-        for (int color=0;color<3;color+=1){
+        for (int color=0;color<5;color+=1){
             pos=(uint16_t*)framebuffer;
+            uint16_t data;
+            if (color==0){
+                data=0xffff;// white
+            }else if(color==1){
+                data=0x0000;// black
+            }else if(color==2){
+                data=0xf800;// Red
+            }else if(color==3){
+                data=0x07e0;// Green
+            }else{
+                data=0x001f;// Blue
+            }
             for(int x=0;x<WIDTH;x++){
                 for (int y=0;y<HEIGHT;y++){
-                    if (color==0){
-                        *pos++=0xf800;// R
-                    }else if(color==1){
-                        *pos++=0x07e0;// R
-                    }else{
-                        *pos++=0x001f;// R
-                    }
+                   *pos++=data;
                 }
             }
             mipi_dbi_update16(&dbi, 0, 0, WIDTH, HEIGHT, framebuffer, WIDTH * HEIGHT*2 );
             LOG("color:%d\n\r",color);
             sleep_ms(1000);
         }
-        #endif//RGB565
-    #endif//RGB666 or RGB888
+    #endif//ndef RGB565
     #ifdef RGB565
     {// 全面クリア
         uint16_t * pos;
@@ -630,7 +608,7 @@ int main(void)
 */    //stdio_uart_init_full();
     //framebuffer = malloc(WIDTH * HEIGHT *3);
     #ifdef RASPBERRYPI_PICO2
-        #if GUD_DEBUG >= 0
+        #if GUD_DEBUG >= 1
         stdio_uart_init_full(uart0,
             PICO_DEFAULT_UART_BAUD_RATE,PICO_DEFAULT_UART_TX_PIN,PICO_DEFAULT_UART_RX_PIN);
         sleep_ms(100);
@@ -725,3 +703,4 @@ void tud_mount_cb(void)
     if (LED_ACTION == 2)
         board_led_write(false);
 }
+

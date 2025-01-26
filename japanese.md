@@ -21,16 +21,18 @@
   build-pico2,build-pico,build-xiao_rp2040など  
 ## cmakeコマンド使用例
   cmake  -DPICO_PAORD=seeed_xiao_rp2040 ../  
-  cmake -DPICO_BOARD=seeed_xiao_rp2350　../  
+  cmake -DPICO_BOARD=seeed_xiao_rp2350 ../  
   cmake -DPICO_BOARD=pico2 ../  
   cmake -DPICO_BOARD=pico ../  
   
 # 実行ファイルを書き込む
   picotool load panel/xx/xx.uf2  
   picotool reboot  
-  
-# 動作確認
+# 注意点
+  GUIコンソールの場合、GUDの影響で動作が遅くなったり、HDMIディスプレイにノイズがでることがある。
+  CUIに切り替える。  
 
+# 動作確認
 1. gudデバイスのモード確認  
    modetest -M gud  
    modesに320x240が入っているか確認  
@@ -40,9 +42,9 @@
        modetest -M gud -s 35@33:320x240@RG16  
        modetest -M gud -s 35@33:320x480@RG16  
        modetest -M gud -s 35@33:480x320@XR24  
-3.
-   fbset -fb /dev/fb0 -match  
-   fbset -fb /dev/fb1 -match  
+3. GUDの対応モード確認
+   fbset -fb /dev/fb0
+   fbset -fb /dev/fb1
 4. JPEGファイルの表示  
    sudo fbi -d /dev/fb0 -T 2 ~/Ryogoku_Kokugikan_1909.jpg  
    sudo fbi -d /dev/fb0 -T 2 ~/imx217.jpg  
