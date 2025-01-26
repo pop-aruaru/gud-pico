@@ -435,6 +435,7 @@ for (int i = 0; i < HEIGHT * WIDTH; i++) {
 
     uint16_t rotation = ROTATE;
     uint8_t addr_mode;
+    LOG("rotate: %d\n",rotation);
 
     switch (rotation) {
     default:

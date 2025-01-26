@@ -502,7 +502,7 @@ static void init_display(void)
             addr_mode = ILI9341_MADCTL_MX;
             break;
         }
-        //addr_mode |= ILI9341_MADCTL_BGR;
+        addr_mode |= ILI9341_MADCTL_BGR;
         mipi_dbi_command(&dbi, MIPI_DCS_SET_ADDRESS_MODE, addr_mode);
     }
 
@@ -774,10 +774,11 @@ int main(void)
     return 0;
 
 }
-
+#if 0
 void tud_mount_cb(void)
 {
     LOG("%s:\n", __func__);
     if (LED_ACTION == 2)
         board_led_write(false);
 }
+#endif
