@@ -16,9 +16,9 @@ $ cd gud-pico
 $ mkdir build && cd build
 $ cmake  -DPICO_PAORD=seeed_xiao_rp2040 ../
 or
-$ cmake  -DPICO_PAORD=seeed_xiao_rp2040 ../
-$ cmake  -DPICO_PAORD=seeed_xiao_rp2040 ../
-$ cmake  -DPICO_PAORD=seeed_xiao_rp2040 ../
+$ cmake  -DPICO_PAORD=seeed_xiao_rp2350 ../
+$ cmake  -DPICO_PAORD=pico2 ../
+$ cmake  -DPICO_PAORD=pico ../
 $ make -j8
 
 ```
