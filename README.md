@@ -11,11 +11,15 @@ The ```PICO_SDK_PATH``` env var should point to the Pico SDK.
 
 Build
 ```
-$ git clone 
+$ git clone https://github.com/ShojiMiyanishi/gud-pico.git
 $ cd gud-pico
 $ mkdir build && cd build
-$ cmake ..
-$ make
+$ cmake  -DPICO_PAORD=seeed_xiao_rp2040 ../
+or
+$ cmake  -DPICO_PAORD=seeed_xiao_rp2040 ../
+$ cmake  -DPICO_PAORD=seeed_xiao_rp2040 ../
+$ cmake  -DPICO_PAORD=seeed_xiao_rp2040 ../
+$ make -j8
 
 ```
 
