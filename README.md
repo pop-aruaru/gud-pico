@@ -3,7 +3,7 @@ Import from [notrogud-pico](https://github.com/notro/gud-pico.git)
 Raspberry Pi Pico GUD USB Display
 ---------------------------------
 
-GUD implementation for the Raspberry Pi Pico with a LCD driven by ST7796,ILI9488,ILI9341.
+GUD implementation LCD driven by ST7796,ILI9488,ILI9341.
 
 Support Raspbarry Pi pico and pico2 , xiao, xiao-rp2350.
 
