@@ -20,7 +20,7 @@ with open('/dev/fb0', 'wb') as f:
         qvga3=cv2.cvtColor(qvga,cv2.COLOR_BGR2RGBA)#色がおかしい 肌色が紫になるので。
         # デバイスファイルへの書き込み
         f.write(qvga3)
-        f.seek(0, os.SEEK_SET)
+        f.seek(0)
 
 camera.stop()
 camera.close()
