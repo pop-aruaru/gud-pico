@@ -59,3 +59,8 @@
 6. 動画の表示  
    mpv --vo=drm --drm-connector=0.USB-2 ~/sample-5s.mp4  
    mpv --drm-device=/dev/fb0 ~/sample-5s.mp4  
+
+# pythonサンプル
+https://github.com/pop-aruaru/libpyfb/blob/patch-2/libpyfb.py
+
+メモリーマップファイルを利用して、seekで書き込みアドレスを指定し書き込む。
