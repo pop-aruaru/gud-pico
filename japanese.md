@@ -1,10 +1,11 @@
 # 変更点
    * MCUボードを指定できるように変更
       PICO,PICO2,XIAO-RP2040,XIAO-RP2350  
-   * VGA LCDの追加
-　    panelディレクトリを作成し、LCD DriverにST7796とILI9488を使用した作成、mi0283qtをILI9341として追加
+   * HVGA LCDの追加
+　    panelディレクトリを作成し、LCD DriverにST7796とILI9488を使用した設定を追加、mi0283qtをILI9341として追加
    * RGB888対応
-      ili9488とst7796で、RGB666を使用できるようにRGB888を追加
+      ili9488とst7796で、RGB666を使用できるようにRGB888を追加、PCからhRGB888を送り、表示はRGB666。データ量が増えるので、遅くなる。
+      RAMが不足するので、分割してPCから転送するようになる。
 # GPIOの指定
   各ボードのGPIOの指定はcmake時のPICO_BOARDの指定によりdefineされるマクロによって選択するようにmainソースファイルに記述。  
   seeedのxiao-rp2040の場合：　#ifdef SEEED_XIAO_RP2040　以下に記述  
@@ -59,8 +60,29 @@
 6. 動画の表示  
    mpv --vo=drm --drm-connector=0.USB-2 ~/sample-5s.mp4  
    mpv --drm-device=/dev/fb0 ~/sample-5s.mp4  
+7. カメラの表示
+   camera2fb.py
 
-# pythonサンプル
-https://github.com/pop-aruaru/libpyfb/blob/patch-2/libpyfb.py
+   ## pythonサンプル
+   * https://github.com/pop-aruaru/libpyfb/blob/patch-2/libpyfb.py
+   * メモリーマップファイルを利用して、seekで書き込みアドレスを指定し書き込む。
 
-メモリーマップファイルを利用して、seekで書き込みアドレスを指定し書き込む。
+# SPIクロック
+## ILI9341
+* 書き込み:10MHz,100ns
+* 読み出し:6MHz,150ns
+
+## ILI9488
+3line
+* 書き込み:15MHz,66ns
+* 読み出し:6MHz,150ns
+4line
+* 書き込み:20MHz,50ns
+* 読み出し:6MHz,150ns
+## ST7796
+* 書き込み:15MHz,66ns
+* 読み出し:6MHz,150ns
+
+## mcu
+ * RP2340+ST7796 75MHz
+ * RP2340+ILI9341 75MHz
