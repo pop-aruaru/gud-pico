@@ -1,4 +1,12 @@
 # SPDX-License-Identifier: MIT
-
+if(PICO_PLATFORM STREQUAL "rp2040")
+	#add_subdirectory(ili9488)
+    #add_subdirectory(st7796m)
+else()
+    add_subdirectory(ili9488)
+    add_subdirectory(st7796)
+endif()
 add_subdirectory(pico-display)
 add_subdirectory(mi0283qt)
+#add_subdirectory(ili9488)
+add_subdirectory(ili9341)

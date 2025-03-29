@@ -8,23 +8,51 @@
 #include "tusb.h"
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
+#include "hardware/watchdog.h"
 #include "pico/unique_id.h"
+#include "pico/bootrom.h"
+#include "pico/stdio_uart.h"
 
 #include "driver.h"
 #include "gud.h"
 #include "mipi_dbi.h"
 #include "cie1931.h"
 
-#define LOG
-#define LOG2
-#define LOG3
+#define TFT_BLACK       0x0000      /*   0,   0,   0 */
+#define TFT_BLUE        0x001F      /*   0,   0, 255 */
+#define TFT_GREEN       0x07E0      /*   0, 255,   0 */
+#define TFT_RED         0xF800      /* 255,   0,   0 */
+#define TFT_WHITE       0xFFFF      /* 255, 255, 255 */
 
+#define GUD_DEBUG 0
+
+//#define LOG
+//#define LOG2
+//#define LOG3
+#define USE_WATCHDOG    0
+#define PANIC_REBOOT_BLINK_LED_MS   100
+
+#if GUD_DEBUG >= 1
+#define LOG     printf
+#else
+#define LOG
+#endif
+#if GUD_DEBUG >= 2
+#define LOG2    printf
+#else
+#define LOG2
+#endif
+#if GUD_DEBUG >= 3
+#define LOG3    printf
+#else
+#define LOG3
+#endif
 /*
  * 0 = led off
  * 1 = power led, off while flushing
  * 2 = on while flushing
  */
-#define LED_ACTION  1
+#define LED_ACTION  0
 
 /*
  * Pins are mapped for the Watterott RPi-Display on a Pico HAT Expansion board:
@@ -51,28 +79,110 @@
  * GPIO25       D/C
  * GPIO24       STMPE610 INT
  */
-
-#define BL_GPIO         28
-#define BL_DEF_LEVEL    100
-
-#define RESET_GPIO      27
+// ディスプレイのサイズ設定　1:2.4 , 2:2.8 , 3:3.2
+#define INCH 3
+#define ROTATE 0
 
 #define WIDTH   320
 #define HEIGHT  240
-
+#if INCH==1
+#define WIDTH_MM   50
+#define HEIGHT_MM  37
+#elif INCH==2
+#define WIDTH_MM   58
+#define HEIGHT_MM  43
+#elif INCH==3
+#define WIDTH_MM   66
+#define HEIGHT_MM  50
+#endif // 実サイズ
+#define BL_DEF_LEVEL    100
 // There's not room for to full buffers so max_buffer_size must be set
 uint16_t framebuffer[WIDTH * HEIGHT];
 uint16_t compress_buf[WIDTH * 120];
+static uint64_t panic_reboot_blink_time;
+
+#ifdef SEEED_XIAO_RP2350
+//#error 2350
+//for xiao_rp2350
+#define XPT2046_CS  27 //sikl1
+#define RESET_GPIO  28 //silk2
+#define BL_GPIO     6  //silk4
+//#define BOOTSEL     1  //silk7
+#define BOOTSEL     26  //silk0
+#define LED_YELLO   25
 
 static const struct mipi_dbi dbi = {
     .spi = spi0,
     .sck = 2,
     .mosi = 3,
-    .cs = 5,
-    .dc = 26,
+    .cs = 5,//silk3
+    .dc = 0,//silk6
     .baudrate = 64 * 1024 * 1024, // 64MHz
 };
+#endif
 
+#ifdef SEEED_XIAO_RP2040
+//#error 1
+//for xiao_rp2040
+#define XPT2046_CS  27 //sikl1
+#define RESET_GPIO  28 //silk2
+#define BL_GPIO     6  //silk4
+//#define BOOTSEL     1  //silk7
+#define BOOTSEL     26  //silk0
+#define LED_BLUE    25
+#define LED_GREEN   16
+#define LED_RED   17
+#define NEO_PWD 11
+#define NEO_PIX  12
+static const struct mipi_dbi dbi = {
+    .spi = spi0,
+    .sck = 2,
+    .mosi = 3,
+    .cs = 29,//silk3
+    .dc = 0,//silk6
+    .baudrate = 64 * 1024 * 1024, // 64MHz
+};
+#endif
+#ifdef RASPBERRYPI_PICO
+//#error 2
+//for pico
+#define XPT2046_INT 0  //sikl0
+#define XPT2046_CS  1  //sikl1
+#define BOOTSEL     5  //silk5 red-switch
+#define BL_GPIO     13 //silk13
+#define RESET_GPIO  15 //silk15
+#define LED_YELLO   25
+static const struct mipi_dbi dbi = {
+    .spi = spi1,
+    .sck = 10,
+    .mosi = 11,
+    //.miso = 12,
+    .cs = 9,  
+    .dc = 8,
+    .baudrate = 64 * 1024 * 1024, // 80MHz
+};
+#endif
+#ifdef RASPBERRYPI_PICO2
+//for pico2
+#define XPT2046_INT 0  //sikl0
+#define XPT2046_CS  1  //sikl1
+#define BOOTSEL     5  //silk5 red-switch
+#define BL_GPIO     13 //silk13
+#define RESET_GPIO  15 //silk15
+#define LED_YELLO   25
+static const struct mipi_dbi dbi = {
+    .spi = spi1,
+    .sck = 10,
+    .mosi = 11,
+    //.miso = 12,
+    .cs = 9,  
+    .dc = 8,
+    .baudrate = 80 * 1024 * 1024, // 80MHz
+};
+#endif
+#ifndef BL_GPIO
+#error "no board"
+#endif
 static uint brightness = BL_DEF_LEVEL;
 
 static void backlight_set(int level)
@@ -193,9 +303,9 @@ static const struct gud_display_edid edid = {
     .name = "RPi-Display",
     .pnp = "WAT",
     .product_code = 0x01,
-    .year = 2021,
-    .width_mm = 58,
-    .height_mm = 43,
+    .year = 2025,
+    .width_mm = WIDTH_MM, //58,
+    .height_mm = HEIGHT_MM, //43,
 
     .get_serial_number = gud_display_edid_get_serial_number,
 };
@@ -206,7 +316,7 @@ const struct gud_display display = {
 
 //    .flags = GUD_DISPLAY_FLAG_FULL_UPDATE,
 
-    .compression = GUD_COMPRESSION_LZ4,
+    .compression = GUD_COMPRESSION_LZ4,// or 0
     .max_buffer_size = sizeof(compress_buf),
 
     .formats = pixel_formats,
@@ -214,7 +324,10 @@ const struct gud_display display = {
 
     .connector_properties = connector_properties,
     .num_connector_properties = 1,
-
+#if USE_WATCHDOG
+    // Tell the host to send a connector status request every 10 seconds for our tinyusb "watchdog"
+    .connector_flags = GUD_CONNECTOR_FLAGS_POLL_STATUS,
+#endif
     .edid = &edid,
 
     .controller_enable = controller_enable,
@@ -253,6 +366,9 @@ const struct gud_display display = {
 
 static void init_display(void)
 {
+for (int i = 0; i < HEIGHT * WIDTH; i++) {
+        framebuffer[i] = TFT_GREEN;
+    }
     backlight_init(BL_GPIO);
     mipi_dbi_spi_init(&dbi);
 
@@ -287,11 +403,11 @@ static void init_display(void)
 
     /* Gamma */
     mipi_dbi_command(&dbi, ILI9341_EN3GAM, 0x08);
-    mipi_dbi_command(&dbi, MIPI_DCS_SET_GAMMA_CURVE, 0x01);
-    mipi_dbi_command(&dbi, ILI9341_PGAMCTRL,
+    mipi_dbi_command(&dbi, MIPI_DCS_SET_GAMMA_CURVE, 0x01); //0x26
+    mipi_dbi_command(&dbi, ILI9341_PGAMCTRL,                //0xe0
                      0x1f, 0x1a, 0x18, 0x0a, 0x0f, 0x06, 0x45, 0x87,
                      0x32, 0x0a, 0x07, 0x02, 0x07, 0x05, 0x00);
-    mipi_dbi_command(&dbi, ILI9341_NGAMCTRL,
+    mipi_dbi_command(&dbi, ILI9341_NGAMCTRL,                //0xe1
                      0x00, 0x25, 0x27, 0x05, 0x10, 0x09, 0x3a, 0x78,
                      0x4d, 0x05, 0x18, 0x0d, 0x38, 0x3a, 0x1f);
 
@@ -303,7 +419,7 @@ static void init_display(void)
     mipi_dbi_command(&dbi, MIPI_DCS_EXIT_SLEEP_MODE);
     sleep_ms(100);
 
-    uint16_t rotation = 180;
+    uint16_t rotation = ROTATE;
     uint8_t addr_mode;
 
     switch (rotation) {
@@ -329,20 +445,150 @@ static void init_display(void)
     sleep_ms(100);
 
     // Clear display
-    mipi_dbi_update16(&dbi, 0, 0, WIDTH, HEIGHT, framebuffer, WIDTH * HEIGHT * 2);
+    //mipi_dbi_update16(&dbi, 0, 0, WIDTH, HEIGHT, framebuffer, WIDTH * HEIGHT * 2);
+    LOG("LCD clear start.\n\r");
+    backlight_set(100);
+    for (int color=0;color<4;color+=1){
+        uint16_t *pos=(uint16_t*)framebuffer;
+        for(int x=0;x<WIDTH;x++){
+            for (int y=0;y<HEIGHT;y++){
+                if(color==0)*pos=0xf800;// Red
+                else if(color==1)*pos=0x07e0;// Green
+                else if(color==2)*pos=0x001f;// Blue
+                else *pos=0x0000;//Black
+                pos++;
+            }
+        }
+        // Clear display
+        mipi_dbi_update16(&dbi, 0, 0, WIDTH, HEIGHT, framebuffer, WIDTH * HEIGHT * 2);
+        sleep_ms(500);
+    }
+    backlight_set(0);
 }
 
+void gpio_callback(uint gpio, uint32_t events) {
+    // Put the GPIO event(s) that just happened into event_str
+    if (events & 1) {
+        // Copy this event string into the user string
+        #ifdef LED_BLUE
+        gpio_put(LED_BLUE, 0);
+        #endif
+    }
+    if (events & 2) {
+        // Copy this event string into the user string
+        #ifdef LED_BLUE
+        gpio_put(LED_BLUE, 1);
+        #endif
+    }
+    if (events == BOOTSEL) {
+        // Copy this event string into the user string
+        #ifdef LED_GREEN
+        gpio_put(LED_GREEN, 0);
+        #endif
+        #ifdef LED_BLUE
+        gpio_put(LED_BLUE, 0);
+        #endif
+        #ifdef LED_YELLO
+        gpio_put(LED_YELLO, 0);
+        #endif
+         rom_reset_usb_boot ( 0,  0);
+    }
+    if (events & 4) {
+        // Copy this event string into the user string
+        #ifdef LED_GREEN
+        gpio_put(LED_GREEN, 0);
+        #endif
+        #ifdef LED_BLUE
+        gpio_put(LED_BLUE, 0);
+        #endif
+        #ifdef LED_YELLO
+        gpio_put(LED_YELLO, 0);
+        #endif
+         rom_reset_usb_boot ( 0,  0);
+    }
+    if (events & 8) {
+        // Copy this event string into the user string
+        #ifdef LED_GREEN
+        gpio_put(LED_GREEN, 1);
+        #endif
+        #ifdef LED_BLUE
+        gpio_put(LED_BLUE, 1);
+        #endif
+        #ifdef LED_YELLO
+        gpio_put(LED_YELLO, 1);
+        #endif
+    }
+    
+}
+/*
+    "LEVEL_LOW",  // 0x1
+    "LEVEL_HIGH", // 0x2
+    "EDGE_FALL",  // 0x4
+    "EDGE_RISE"   // 0x8
+*/
 int main(void)
 {
+    //#ifdef RASPBERRYPI_PICO2 
+    #if GUD_DEBUG >= 1
+    stdio_uart_init_full(uart0,
+        PICO_DEFAULT_UART_BAUD_RATE,PICO_DEFAULT_UART_TX_PIN,PICO_DEFAULT_UART_RX_PIN);
+    sleep_ms(100);
+    LOG("main");
+    LOG("printf main start\n\r\n\r");
+    {
+        int a;
+        a=sizeof(compress_buf);
+        LOG3("sizeof(compress_buf): %ld\n\r",a);
+        a=sizeof(*framebuffer);
+        LOG3("sizeof(framebuffer): %ld\n\r",a);
+    }
+    LOG("PICO_FLASH_SIZE_BYTES = %dKbyte\n",PICO_FLASH_SIZE_BYTES/1024);
+
+    #endif
+
     board_init();
 
     if (LED_ACTION)
+        LOG("LED action\n");
         board_led_write(true);
 
     // Pull ADS7846 CE1 high
-    gpio_set_function(19, GPIO_FUNC_SIO);
-    gpio_set_dir(19, GPIO_OUT);
-    gpio_put(19, 1);
+    #ifdef XPT2046_CS
+        LOG("XPT2046_CS\n");
+    gpio_set_function(XPT2046_CS, GPIO_FUNC_SIO);
+    gpio_set_dir(XPT2046_CS, GPIO_OUT);
+    gpio_put(XPT2046_CS, 1);
+    #endif
+    #ifdef BOOTSEL
+        LOG("BOOTSEL\n");
+    gpio_init(BOOTSEL);
+    gpio_pull_up(BOOTSEL); // pull it up even more!
+    gpio_set_irq_enabled_with_callback(BOOTSEL, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
+    #endif
+    #ifdef LED_BLUE
+        LOG("LED_BLUE\n");
+    gpio_init(LED_BLUE);
+    gpio_set_dir(LED_BLUE,GPIO_OUT);
+    gpio_put(LED_BLUE, 0);
+    #endif
+    #ifdef LED_GREEN
+        LOG("LED_GREEN\n");
+    gpio_init(LED_GREEN);
+    gpio_set_dir(LED_GREEN,GPIO_OUT);
+    gpio_put(LED_GREEN, 0);
+    #endif
+    #ifdef LED_YELLO
+        LOG("LED_YELLO\n");
+    gpio_init(LED_YELLO);
+    gpio_set_dir(LED_YELLO,GPIO_OUT);
+    gpio_put(LED_YELLO, 1);
+    #endif
+    #ifdef LED_RED
+        LOG("LED_RED\n");
+    gpio_init(LED_RED);
+    gpio_set_dir(LED_RED,GPIO_OUT);
+    gpio_put(LED_RED, 1);
+    #endif
 
     init_display();
 
@@ -355,6 +601,23 @@ int main(void)
     while (1)
     {
         tud_task(); // tinyusb device task
+        if (USE_WATCHDOG) {
+            watchdog_update();
+
+            uint64_t now = time_us_64();
+            if (PANIC_REBOOT_BLINK_LED_MS && panic_reboot_blink_time && panic_reboot_blink_time < now) {
+                static bool led_state;
+                board_led_write(led_state);
+                led_state = !led_state;
+                panic_reboot_blink_time = now + (PANIC_REBOOT_BLINK_LED_MS * 1000);
+            }
+
+            // Sometimes we stop receiving USB requests, but the host thinks everything is fine.
+            // Reset if we haven't heard from tinyusb, the host sends connector status requests every 10 seconds
+            // Let the watchdog do the reset
+            if (gud_driver_req_timeout(15))
+                panic("Request TIMEOUT");
+        }
     }
 
     return 0;
