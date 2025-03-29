@@ -1,9 +1,9 @@
 # 変更点
-   # MCUボードを指定できるように変更
+   ## MCUボードを指定できるように変更
       PICO,PICO2,XIAO-RP2040,XIAO-RP2350  
-   # VGA LCDの追加
+   ## VGA LCDの追加
 　    panelディレクトリを作成し、LCD DriverにST7796とILI9488を使用した作成、mi0283qtをILI9341として追加
-   # RGB888対応
+   ## RGB888対応
       ili9488とst7796で、RGB666を使用できるようにRGB888を追加
 # GPIOの指定
   各ボードのGPIOの指定はcmake時のPICO_BOARDの指定によりdefineされるマクロによって選択するようにmainソースファイルに記述。  
