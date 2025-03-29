@@ -21,7 +21,7 @@
   MCUボードごとにbuildディレクトリを分けると良い。  
   build-pico2,build-pico,build-xiao_rp2040など  
 ## cmakeコマンド使用例
-  cmake  -DPICO_PAORD=seeed_xiao_rp2040 ../  
+  cmake -DPICO_BAORD=seeed_xiao_rp2040 ../  
   cmake -DPICO_BOARD=seeed_xiao_rp2350 ../  
   cmake -DPICO_BOARD=pico2 ../  
   cmake -DPICO_BOARD=pico ../  
