@@ -1,5 +1,5 @@
-＃変更点
-   #　MCUボードを指定できるように変更
+# 変更点
+   # MCUボードを指定できるように変更
       PICO,PICO2,XIAO-RP2040,XIAO-RP2350  
    # VGA LCDの追加
 　    panelディレクトリを作成し、LCD DriverにST7796とILI9488を使用した作成、mi0283qtをILI9341として追加
