@@ -1,25 +1,17 @@
-Import from [notrogud-pico](https://github.com/notro/gud-pico.git)  
-
 Raspberry Pi Pico GUD USB Display
 ---------------------------------
 
-GUD implementation LCD driven by ST7796,ILI9488,ILI9341.
-
-Support Raspbarry Pi pico and pico2 , xiao, xiao-rp2350.
+GUD implementation for the Raspberry Pi Pico with a [Pimoroni Pico Display](https://shop.pimoroni.com/products/pico-display-pack).
 
 The ```PICO_SDK_PATH``` env var should point to the Pico SDK.
 
 Build
 ```
-$ git clone https://github.com/ShojiMiyanishi/gud-pico.git
+$ git clone https://github.com/notro/gud-pico
 $ cd gud-pico
 $ mkdir build && cd build
-$ cmake  -DPICO_PAORD=seeed_xiao_rp2040 ../
-or
-$ cmake  -DPICO_PAORD=seeed_xiao_rp2350 ../
-$ cmake  -DPICO_PAORD=pico2 ../
-$ cmake  -DPICO_PAORD=pico ../
-$ make -j8
+$ cmake ..
+$ make
 
 ```
 
